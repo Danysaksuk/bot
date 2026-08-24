@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grok Clone - AI Coding Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">⚡</span>
+          <span class="logo-text">Grok Clone</span>
+        </div>
+        <button class="new-chat-btn" id="newChatBtn">
+          <span class="btn-icon">+</span>
+          New Chat
+        </button>
+      </div>
+      
+      <div class="sidebar-content">
+        <div class="settings-section">
+          <h3>Model</h3>
+          <select id="modelSelect" class="model-select">
+            <option value="qwen2.5-coder:7b">qwen2.5-coder:7b</option>
+          </select>
+        </div>
+        
+        <div class="settings-section">
+          <h3>Temperature</h3>
+          <div class="slider-container">
+            <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+            <span id="tempValue">0.7</span>
+          </div>
+        </div>
+        
+        <div class="tools-section">
+          <h3>Available Tools</h3>
+          <div class="tools-list">
+            <div class="tool-badge">🔍 Web Search</div>
+            <div class="tool-badge">📁 File Operations</div>
+            <div class="tool-badge">⚡ Terminal</div>
+          </div>
+        </div>
+        
+        <div class="examples-section">
+          <h3>Try these prompts</h3>
+          <button class="example-prompt" data-prompt="Explain what a closure is in JavaScript">
+            📝 Explain closures in JS
+          </button>
+          <button class="example-prompt" data-prompt="Write a Python function to find prime numbers">
+            🐍 Prime number function
+          </button>
+          <button class="example-prompt" data-prompt="Help me debug this code: function add(a,b) { return a-b }">
+            🐛 Debug this code
+          </button>
+          <button class="example-prompt" data-prompt="What are the latest React 19 features?">
+            🔍 Search latest React features
+          </button>
+        </div>
+      </div>
+      
+      <div class="sidebar-footer">
+        <div class="status-indicator" id="statusIndicator">
+          <span class="status-dot"></span>
+          <span class="status-text">Connected</span>
+        </div>
+      </div>
+    </aside>
+    
+    <!-- Main Chat Area -->
+    <main class="main-content">
+      <div class="chat-header">
+        <button class="menu-toggle" id="menuToggle">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <h1>Grok Clone</h1>
+        <div class="header-actions">
+          <button class="icon-btn" id="clearChat" title="Clear Chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      <div class="chat-container" id="chatContainer">
+        <div class="welcome-screen" id="welcomeScreen">
+          <div class="welcome-icon">⚡</div>
+          <h2>Welcome to Grok Clone</h2>
+          <p>Your AI-powered coding assistant with real-time web search, code generation, and file operations.</p>
+          <div class="feature-cards">
+            <div class="feature-card">
+              <span class="feature-icon">💻</span>
+              <h3>Code Generation</h3>
+              <p>Write, debug, and explain code in any language</p>
+            </div>
+            <div class="feature-card">
+              <span class="feature-icon">🔍</span>
+              <h3>Web Search</h3>
+              <p>Access real-time information and documentation</p>
+            </div>
+            <div class="feature-card">
+              <span class="feature-icon">📁</span>
+              <h3>File Operations</h3>
+              <p>Read, write, and manage files directly</p>
+            </div>
+            <div class="feature-card">
+              <span class="feature-icon">⚡</span>
+              <h3>Terminal Access</h3>
+              <p>Run commands safely in your environment</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="messages" id="messages"></div>
+      </div>
+      
+      <div class="input-container">
+        <div class="input-wrapper">
+          <textarea 
+            id="messageInput" 
+            placeholder="Ask me anything... (Shift+Enter for new line)"
+            rows="1"
+            autofocus
+          ></textarea>
+          <button class="send-btn" id="sendBtn" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="input-footer">
+          <span class="char-count" id="charCount">0</span>
+          <span class="model-badge" id="modelBadge">qwen2.5-coder:7b</span>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <p>Processing...</p>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>
