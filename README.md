@@ -1,25 +1,17 @@
 # ⚡ Grok Clone - AI Coding Assistant
 
-A standalone AI coding assistant inspired by Grok, powered by Ollama for local inference with real-time web search, file operations, and terminal access.
+A standalone AI coding assistant inspired by Grok, powered by **cloud models** with smart rotation to never hit rate limits. Integrates OpenRouter, Freebuff, and custom providers.
 
 ## Features
 
-- 💻 **Code Generation & Debugging** - Write, explain, and debug code in any language
-- 🔍 **Real-time Web Search** - Access current information and documentation
-- 📁 **File Operations** - Read, write, and list files directly
+- ☁️ **Cloud Models** - GLM 5.2, DeepSeek, Mistral, Qwen, NVIDIA, GPT & more
+- 🔄 **Smart Rotation** - Auto-fallback between providers to avoid rate limits
+- 💻 **Code Generation & Debugging** - Write, explain, and debug code
+- 🔍 **Real-time Web Search** - Access current information
+- 📁 **File Operations** - Read, write, and list files
 - ⚡ **Terminal Access** - Execute safe terminal commands
 - 🎨 **Modern Web UI** - Beautiful dark theme interface
 - 💻 **CLI Interface** - Command-line interface for terminal users
-
-## Prerequisites
-
-1. **Node.js** (v18 or higher)
-2. **Ollama** - Local AI model runner
-   ```bash
-   # macOS/Windows: Download from https://ollama.com
-   # Linux:
-   curl -fsSL https://ollama.com/install.sh | sh
-   ```
 
 ## Quick Start
 
@@ -30,85 +22,101 @@ cd grok-clone
 npm install
 ```
 
-### 2. Pull a Model
+### 2. Get API Keys (Optional but Recommended)
+
+**OpenRouter (Recommended - Free tier available):**
+1. Go to [openrouter.ai](https://openrouter.ai)
+2. Sign up and get your API key
+3. Free models available with `:free` suffix
+
+**Freebuff (Optional):**
+1. Use [Freebuff2API](https://github.com/Quorinex/Freebuff2API) proxy
+2. Set the proxy URL and your Freebuff token
+
+### 3. Configure Environment
 
 ```bash
-# Recommended: Code-focused model
-ollama pull qwen2.5-coder:7b
+# Create .env file
+cat > .env << 'EOF'
+# OpenRouter (recommended)
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
-# Or other options:
-ollama pull deepseek-r1:7b    # For complex reasoning
-ollama pull qwen3:8b          # Lightweight option
+# Freebuff (optional, requires proxy)
+FREEBUFF_API_KEY=your-freebuff-token
+FREEBUFF_BASE_URL=http://localhost:8080
+
+# Custom OpenAI-compatible API (optional)
+CUSTOM_AI_API_KEY=your-key
+CUSTOM_AI_BASE_URL=https://your-api.com/v1
+EOF
 ```
 
-### 3. Start the Server
+### 4. Start the Server
 
 ```bash
 # Web UI mode
 npm start
 
-# Or with custom settings:
-MODEL=qwen2.5-coder:7b PORT=3001 npm start
-```
-
-### 4. Open Web UI
-
-Navigate to http://localhost:3001 in your browser.
-
-### 5. CLI Mode
-
-```bash
+# CLI mode
 npm run cli
 ```
+
+### 5. Open Web UI
+
+Navigate to http://localhost:3001 in your browser.
 
 ## Configuration
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MODEL` | `qwen2.5-coder:7b` | Default Ollama model |
-| `PORT` | `3001` | Web UI port |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama API URL |
-| `WORKSPACE` | `process.cwd()` | Working directory for file operations |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENROUTER_API_KEY` | Recommended | OpenRouter API key |
+| `FREEBUFF_API_KEY` | Optional | Freebuff token |
+| `FREEBUFF_BASE_URL` | Optional | Freebuff2API proxy URL |
+| `CUSTOM_AI_API_KEY` | Optional | Custom API key |
+| `CUSTOM_AI_BASE_URL` | Optional | Custom API endpoint |
+| `PORT` | No | Server port (default: 3001) |
+| `WORKSPACE` | No | Working directory |
 
 ### CLI Commands
 
 In CLI mode, use these commands:
 
 - `/help` - Show available commands
-- `/models` - List available models
-- `/model <name>` - Switch model
+- `/providers` - Show provider status
 - `/temp <0-2>` - Set temperature
 - `/clear` - Clear conversation history
-- `/workspace <path>` - Set working directory
 - `/quit` - Exit
 
-## Available Tools
+## Supported Providers
 
-The AI has access to these tools:
+### OpenRouter Free Models
+- `openrouter/free` - Auto-routes to best free model
+- `deepseek/deepseek-chat-v3-0324:free`
+- `qwen/qwen3-235b-a22b:free`
+- `meta-llama/llama-4-maverick:free`
+- `google/gemma-3-27b-it:free`
+- `mistralai/mistral-small-3.2-24b-instruct:free`
+- `nvidia/llama-3.1-nemotron-ultra-253b-v1:free`
 
-1. **web_search(query)** - Search the web for information
-2. **execute_command(command)** - Run terminal commands (safe commands only)
-3. **read_file(path)** - Read file contents
-4. **write_file(path, content)** - Write to files
-5. **list_directory(path)** - List directory contents
+### Freebuff Models
+- `gpt-5.6-luna`
+- `deepseek-v4-flash`
+- `deepseek-v4-pro`
+- `mimo-2.5`
 
-## Safety Features
+### Custom Providers
+Any OpenAI-compatible API works.
 
-- Dangerous commands are blocked (rm -rf, sudo, etc.)
-- File operations are limited to the workspace
-- Tool calls require explicit model decisions
-- All tool executions are logged
+## Smart Rotation
 
-## Recommended Models
+The system automatically rotates between providers to avoid rate limits:
 
-| Model | Size | Best For |
-|-------|------|----------|
-| `qwen2.5-coder:7b` | 4.7GB | General coding (recommended) |
-| `deepseek-r1:7b` | 4.7GB | Complex reasoning |
-| `qwen3:8b` | 5.0GB | Lightweight option |
-| `qwen2.5-coder:14b` | 8.9GB | Advanced coding (needs more RAM) |
+1. **Priority-based routing** - Primary provider tried first
+2. **Automatic fallback** - Switches on 429 or 5xx errors
+3. **Cooldown tracking** - Skips rate-limited providers
+4. **Model rotation** - Cycles through available models
 
 ## Architecture
 
@@ -117,13 +125,15 @@ grok-clone/
 ├── server.js          # Express + WebSocket server
 ├── cli.js            # CLI interface
 ├── lib/
-│   ├── ollama.js     # Ollama API client
+│   ├── cloud.js      # Cloud AI client with rotation
+│   ├── ollama.js     # Ollama client (optional local)
 │   └── tools.js      # Tool definitions & execution
 ├── public/
 │   ├── index.html    # Web UI
 │   ├── styles.css    # Styling
 │   └── app.js        # Frontend JavaScript
-└── package.json
+├── .env              # Environment config
+└── README.md
 ```
 
 ## License

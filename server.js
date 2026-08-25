@@ -2,8 +2,8 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const { OllamaClient } = require('./lib/ollama');
-const { TOOL_DEFINITIONS, executeTool, getSystemPrompt } = require('./lib/tools');
+const { CloudAIClient, getCloudSystemPrompt } = require('./lib/cloud');
+const { TOOL_DEFINITIONS, executeTool } = require('./lib/tools');
 
 const app = express();
 const server = http.createServer(app);
@@ -11,11 +11,25 @@ const wss = new WebSocket.Server({ server });
 
 // Configuration
 const PORT = process.env.PORT || 3001;
-const DEFAULT_MODEL = process.env.MODEL || 'kimi-k2.5:cloud';
 const WORKSPACE = process.env.WORKSPACE || process.cwd();
 
-// Initialize Ollama client
-const ollama = new OllamaClient(process.env.OLLAMA_URL || 'http://localhost:11434');
+// Initialize Cloud AI client with rotation
+const cloudAI = new CloudAIClient({
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+    models: process.env.OPENROUTER_MODELS?.split(',') || undefined,
+  },
+  freebuff: {
+    apiKey: process.env.FREEBUFF_API_KEY,
+    baseUrl: process.env.FREEBUFF_BASE_URL,
+    models: process.env.FREEBUFF_MODELS?.split(',') || undefined,
+  },
+  custom: {
+    apiKey: process.env.CUSTOM_AI_API_KEY,
+    baseUrl: process.env.CUSTOM_AI_BASE_URL,
+    models: process.env.CUSTOM_AI_MODELS?.split(',') || undefined,
+  },
+});
 
 // Store chat histories per session
 const chatHistories = new Map();
@@ -25,13 +39,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes
-app.get('/api/models', async (req, res) => {
-  try {
-    const models = await ollama.listModels();
-    res.json({ models, default: DEFAULT_MODEL });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch models. Is Ollama running?' });
-  }
+app.get('/api/providers', (req, res) => {
+  res.json({ providers: cloudAI.getStatus() });
 });
 
 app.get('/api/tools', (req, res) => {
@@ -54,9 +63,8 @@ wss.on('connection', (ws) => {
       } else if (message.type === 'clear') {
         chatHistories.set(sessionId, []);
         ws.send(JSON.stringify({ type: 'cleared' }));
-      } else if (message.type === 'models') {
-        const models = await ollama.listModels();
-        ws.send(JSON.stringify({ type: 'models', models }));
+      } else if (message.type === 'providers') {
+        ws.send(JSON.stringify({ type: 'providers', providers: cloudAI.getStatus() }));
       }
     } catch (error) {
       ws.send(JSON.stringify({ 
@@ -74,20 +82,19 @@ wss.on('connection', (ws) => {
   // Send welcome message
   ws.send(JSON.stringify({
     type: 'system',
-    message: `Welcome to Grok Clone! I'm your AI coding assistant powered by ${DEFAULT_MODEL}.\n\nI can help you with:\n- 💻 Code generation, debugging, and explanation\n- 🔍 Web search for documentation and current info\n- 📁 File operations (read, write, list)\n- ⚡ Terminal command execution\n\nJust ask me anything!`
+    message: `Welcome to Grok Clone! I'm your AI coding assistant powered by cloud models.\n\n**Available providers:** ${cloudAI.getStatus().map(p => p.name).join(', ')}\n\nI can help you with:\n- 💻 Code generation, debugging, and explanation\n- 🔍 Web search for documentation and current info\n- 📁 File operations (read, write, list)\n- ⚡ Terminal command execution\n\nJust ask me anything!`
   }));
 });
 
 async function handleChatMessage(ws, sessionId, message) {
   const history = chatHistories.get(sessionId) || [];
-  const model = message.model || DEFAULT_MODEL;
   
   // Add user message to history
   history.push({ role: 'user', content: message.content });
   
   // Build messages array with system prompt
   const messages = [
-    { role: 'system', content: getSystemPrompt(WORKSPACE) },
+    { role: 'system', content: getCloudSystemPrompt(WORKSPACE) },
     ...history
   ];
   
@@ -96,31 +103,31 @@ async function handleChatMessage(ws, sessionId, message) {
   // Track if we need to process tool calls
   let fullResponse = '';
   let toolCalls = [];
+  let lastProvider = '';
   
   try {
-    await ollama.chatStream(
-      model,
+    cloudAI.chatStream(
       messages,
-      { temperature: message.temperature || 0.7 },
+      { temperature: message.temperature || 0.7, model: message.model },
       // On data chunk
-      (chunk) => {
-        if (chunk.message && chunk.message.content) {
-          fullResponse += chunk.message.content;
-          ws.send(JSON.stringify({ 
-            type: 'chunk', 
-            content: chunk.message.content 
-          }));
-        }
+      (chunk, info) => {
+        if (info?.provider) lastProvider = info.provider;
+        fullResponse += chunk;
+        ws.send(JSON.stringify({ 
+          type: 'chunk', 
+          content: chunk,
+          provider: info?.provider,
+          model: info?.model,
+        }));
       },
       // On end
-      async (finalChunk) => {
+      async (result) => {
         // Add assistant response to history
         history.push({ role: 'assistant', content: fullResponse });
         
         // Check for tool calls in the response
         const toolCallRegex = /```tool\s*\n([\s\S]*?)\n```/g;
         let match;
-        let processedResponse = fullResponse;
         
         while ((match = toolCallRegex.exec(fullResponse)) !== null) {
           try {
@@ -128,19 +135,13 @@ async function handleChatMessage(ws, sessionId, message) {
             toolCalls.push(toolCall);
             
             // Execute the tool
-            const result = await executeTool(toolCall.name, toolCall.params);
+            const toolResult = await executeTool(toolCall.name, toolCall.params);
             
             // Add tool result to history for context
             history.push({ 
               role: 'system', 
-              content: `Tool "${toolCall.name}" result: ${JSON.stringify(result)}` 
+              content: `Tool "${toolCall.name}" result: ${JSON.stringify(toolResult)}` 
             });
-            
-            // Replace tool call with result in response
-            processedResponse = processedResponse.replace(
-              match[0],
-              `\n\n<tool-result name="${toolCall.name}">\n${JSON.stringify(result, null, 2)}\n</tool-result>\n`
-            );
           } catch (e) {
             console.error('Tool execution error:', e);
           }
@@ -152,30 +153,28 @@ async function handleChatMessage(ws, sessionId, message) {
           
           // Get follow-up response incorporating tool results
           const followUpMessages = [
-            { role: 'system', content: getSystemPrompt(WORKSPACE) },
+            { role: 'system', content: getCloudSystemPrompt(WORKSPACE) },
             ...history,
             { role: 'user', content: 'Based on the tool results above, provide a comprehensive response to my original question.' }
           ];
           
           let followUpResponse = '';
-          await ollama.chatStream(
-            model,
+          cloudAI.chatStream(
             followUpMessages,
             { temperature: message.temperature || 0.7 },
-            (chunk) => {
-              if (chunk.message && chunk.message.content) {
-                followUpResponse += chunk.message.content;
-                ws.send(JSON.stringify({ 
-                  type: 'chunk', 
-                  content: chunk.message.content 
-                }));
-              }
+            (chunk, info) => {
+              followUpResponse += chunk;
+              ws.send(JSON.stringify({ 
+                type: 'chunk', 
+                content: chunk,
+                provider: info?.provider,
+              }));
             },
             (final) => {
               history.push({ role: 'assistant', content: followUpResponse });
               ws.send(JSON.stringify({ 
                 type: 'done', 
-                model,
+                provider: lastProvider,
                 toolCalls: toolCalls.map(t => t.name)
               }));
             },
@@ -186,7 +185,7 @@ async function handleChatMessage(ws, sessionId, message) {
         } else {
           ws.send(JSON.stringify({ 
             type: 'done', 
-            model,
+            provider: lastProvider,
             toolCalls: []
           }));
         }
@@ -195,7 +194,7 @@ async function handleChatMessage(ws, sessionId, message) {
       (error) => {
         ws.send(JSON.stringify({ 
           type: 'error', 
-          message: `Ollama error: ${error.message}` 
+          message: `Cloud AI error: ${error.message}` 
         }));
       }
     );
@@ -209,15 +208,26 @@ async function handleChatMessage(ws, sessionId, message) {
 
 // Start server
 server.listen(PORT, () => {
+  const providers = cloudAI.getStatus();
   console.log(`
 ╔══════════════════════════════════════════════════════════╗
 ║                   🚀 Grok Clone Server                  ║
 ║──────────────────────────────────────────────────────────║
 ║  Web UI:    http://localhost:${PORT}                      ║
-║  Model:     ${DEFAULT_MODEL.padEnd(40)}║
+║  Providers: ${providers.map(p => p.name).join(', ').padEnd(40)}║
 ║  Workspace: ${WORKSPACE.substring(0, 40).padEnd(40)}║
 ╚══════════════════════════════════════════════════════════╝
   `);
+  
+  if (providers.length === 0 || (providers.length === 1 && providers[0].name === 'openrouter-free')) {
+    console.log(`
+⚠️  No API keys configured! Using OpenRouter free tier (limited).
+    Set these environment variables for better performance:
+    
+    export OPENROUTER_API_KEY=your_key_here    # Get from openrouter.ai
+    export FREEBUFF_API_KEY=your_key_here      # Optional: Freebuff proxy
+    `);
+  }
 });
 
 module.exports = { app, server };

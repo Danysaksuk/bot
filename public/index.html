@@ -26,10 +26,10 @@
       
       <div class="sidebar-content">
         <div class="settings-section">
-          <h3>Model</h3>
-          <select id="modelSelect" class="model-select">
-            <option value="qwen2.5-coder:7b">qwen2.5-coder:7b</option>
-          </select>
+          <h3>Cloud Provider</h3>
+          <div id="providerList" class="provider-list">
+            <div class="provider-item loading">Loading providers...</div>
+          </div>
         </div>
         
         <div class="settings-section">
@@ -96,27 +96,27 @@
         <div class="welcome-screen" id="welcomeScreen">
           <div class="welcome-icon">⚡</div>
           <h2>Welcome to Grok Clone</h2>
-          <p>Your AI-powered coding assistant with real-time web search, code generation, and file operations.</p>
+          <p>Your AI-powered coding assistant with cloud models and smart rotation.</p>
           <div class="feature-cards">
+            <div class="feature-card">
+              <span class="feature-icon">☁️</span>
+              <h3>Cloud Models</h3>
+              <p>Powered by OpenRouter, Freebuff & more</p>
+            </div>
+            <div class="feature-card">
+              <span class="feature-icon">🔄</span>
+              <h3>Smart Rotation</h3>
+              <p>Auto-fallback to avoid rate limits</p>
+            </div>
             <div class="feature-card">
               <span class="feature-icon">💻</span>
               <h3>Code Generation</h3>
-              <p>Write, debug, and explain code in any language</p>
+              <p>Write, debug, and explain code</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon">🔍</span>
               <h3>Web Search</h3>
-              <p>Access real-time information and documentation</p>
-            </div>
-            <div class="feature-card">
-              <span class="feature-icon">📁</span>
-              <h3>File Operations</h3>
-              <p>Read, write, and manage files directly</p>
-            </div>
-            <div class="feature-card">
-              <span class="feature-icon">⚡</span>
-              <h3>Terminal Access</h3>
-              <p>Run commands safely in your environment</p>
+              <p>Real-time information access</p>
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@
         </div>
         <div class="input-footer">
           <span class="char-count" id="charCount">0</span>
-          <span class="model-badge" id="modelBadge">qwen2.5-coder:7b</span>
+          <span class="model-badge" id="modelBadge">Cloud AI</span>
         </div>
       </div>
     </main>

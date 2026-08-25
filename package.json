@@ -1,7 +1,7 @@
 {
   "name": "grok-clone",
-  "version": "1.0.0",
-  "description": "AI coding assistant inspired by Grok with web search, file operations, and terminal access",
+  "version": "2.0.0",
+  "description": "AI coding assistant powered by cloud models with smart rotation",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,8 +12,9 @@
     "ai",
     "coding",
     "assistant",
-    "ollama",
-    "grok"
+    "openrouter",
+    "freebuff",
+    "cloud"
   ],
   "author": "",
   "license": "MIT",

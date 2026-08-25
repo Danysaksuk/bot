@@ -1,17 +1,26 @@
 #!/usr/bin/env node
 
 const readline = require('readline');
-const { OllamaClient } = require('./lib/ollama');
-const { TOOL_DEFINITIONS, executeTool, getSystemPrompt } = require('./lib/tools');
+const { CloudAIClient, getCloudSystemPrompt } = require('./lib/cloud');
+const { TOOL_DEFINITIONS, executeTool } = require('./lib/tools');
 
 // Configuration
-const DEFAULT_MODEL = process.env.MODEL || 'kimi-k2.5:cloud';
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const WORKSPACE = process.env.WORKSPACE || process.cwd();
 
-// Initialize
-const ollama = new OllamaClient(OLLAMA_URL);
+// Initialize Cloud AI client
+const cloudAI = new CloudAIClient({
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+  },
+  freebuff: {
+    apiKey: process.env.FREEBUFF_API_KEY,
+    baseUrl: process.env.FREEBUFF_BASE_URL,
+  },
+});
+
+// State
 const history = [];
+let temperature = 0.7;
 
 // Colors
 const colors = {
@@ -56,23 +65,25 @@ function printInfo(text) {
 
 // Welcome message
 function showWelcome() {
+  const providers = cloudAI.getStatus();
   println(`
 ${colors.bright}${colors.cyan}
   ╔══════════════════════════════════════════════════════════╗
   ║                   ⚡ Grok Clone CLI                     ║
   ║──────────────────────────────────────────────────────────║
-  ║  AI-powered coding assistant with tool access           ║
+  ║  Cloud AI coding assistant with smart model rotation    ║
   ╚══════════════════════════════════════════════════════════╝
 ${colors.reset}
 
+${colors.dim}Connected providers:${colors.reset}
+${providers.map(p => `  ${colors.green}✓${colors.reset} ${p.name} (${p.models.length} models)`).join('\n')}
+
 ${colors.dim}Commands:${colors.reset}
-  ${colors.bright}/help${colors.reset}     - Show available commands
-  ${colors.bright}/models${colors.reset}   - List available models
-  ${colors.bright}/model${colors.reset}    - Change model
-  ${colors.bright}/temp${colors.reset}     - Set temperature (0-2)
-  ${colors.bright}/clear${colors.reset}    - Clear conversation history
-  ${colors.bright}/workspace${colors.reset} - Set workspace path
-  ${colors.bright}/quit${colors.reset}     - Exit the application
+  ${colors.bright}/help${colors.reset}      - Show available commands
+  ${colors.bright}/providers${colors.reset} - Show provider status
+  ${colors.bright}/temp${colors.reset}      - Set temperature (0-2)
+  ${colors.bright}/clear${colors.reset}     - Clear conversation history
+  ${colors.bright}/quit${colors.reset}      - Exit the application
 
 ${colors.dim}Tools available:${colors.reset} web_search, execute_command, read_file, write_file, list_directory
 `);
@@ -89,17 +100,8 @@ async function handleCommand(input) {
       showHelp();
       return true;
 
-    case '/models':
-      await listModels();
-      return true;
-
-    case '/model':
-      if (args) {
-        currentModel = args;
-        printSuccess(`Model changed to: ${args}`);
-      } else {
-        println(`Current model: ${colors.bright}${currentModel}${colors.reset}`);
-      }
+    case '/providers':
+      showProviders();
       return true;
 
     case '/temp':
@@ -121,15 +123,6 @@ async function handleCommand(input) {
       printSuccess('Conversation history cleared');
       return true;
 
-    case '/workspace':
-      if (args) {
-        workspace = args;
-        printSuccess(`Workspace set to: ${args}`);
-      } else {
-        println(`Current workspace: ${colors.bright}${workspace}${colors.reset}`);
-      }
-      return true;
-
     case '/quit':
     case '/exit':
       println('\nGoodbye! 👋');
@@ -147,11 +140,9 @@ function showHelp() {
 ${colors.bright}Available Commands:${colors.reset}
 
   ${colors.cyan}/help${colors.reset}        Show this help message
-  ${colors.cyan}/models${colors.reset}      List all available Ollama models
-  ${colors.cyan}/model <name>${colors.reset}  Switch to a different model
+  ${colors.cyan}/providers${colors.reset}   Show provider status and models
   ${colors.cyan}/temp <0-2>${colors.reset}   Set response temperature
   ${colors.cyan}/clear${colors.reset}       Clear conversation history
-  ${colors.cyan}/workspace <path>${colors.reset} Set working directory
   ${colors.cyan}/quit${colors.reset}        Exit the application
 
 ${colors.bright}Tips:${colors.reset}
@@ -159,6 +150,7 @@ ${colors.bright}Tips:${colors.reset}
   - Request code in any programming language
   - Ask me to read, write, or list files
   - I can execute safe terminal commands
+  - Models rotate automatically to avoid rate limits
 
 ${colors.bright}Tool Usage:${colors.reset}
   I can use tools automatically when needed. Tools include:
@@ -170,28 +162,21 @@ ${colors.bright}Tool Usage:${colors.reset}
 `);
 }
 
-// List available models
-async function listModels() {
-  try {
-    printInfo('Fetching available models...');
-    const models = await ollama.listModels();
-    
-    if (models.length === 0) {
-      println('No models found. Run "ollama pull <model>" to download one.');
-      return;
+// Show providers
+function showProviders() {
+  const providers = cloudAI.getStatus();
+  println(`\n${colors.bright}Provider Status:${colors.reset}\n`);
+  
+  providers.forEach(p => {
+    const statusColor = p.status === 'available' ? colors.green : colors.yellow;
+    const statusText = p.status === 'available' ? '● Available' : '○ Cooldown';
+    println(`  ${statusColor}${statusText}${colors.reset} ${colors.bright}${p.name}${colors.reset}`);
+    println(`    Models: ${colors.dim}${p.models.join(', ')}${colors.reset}`);
+    if (p.cooldownUntil) {
+      println(`    ${colors.yellow}Cooldown until: ${p.cooldownUntil}${colors.reset}`);
     }
-
-    println(`\n${colors.bright}Available Models:${colors.reset}\n`);
-    models.forEach(model => {
-      const size = model.size ? `(${(model.size / 1e9).toFixed(1)}GB)` : '(cloud)';
-      const marker = model.name === currentModel ? `${colors.green} ← current${colors.reset}` : '';
-      println(`  ${colors.cyan}${model.name}${colors.reset} ${colors.dim}${size}${colors.reset}${marker}`);
-    });
     println();
-  } catch (error) {
-    printError(`Failed to fetch models: ${error.message}`);
-    println('Make sure Ollama is running (ollama serve)');
-  }
+  });
 }
 
 // Process user message
@@ -201,7 +186,7 @@ async function processMessage(input) {
 
   // Build messages
   const messages = [
-    { role: 'system', content: getSystemPrompt(workspace) },
+    { role: 'system', content: getCloudSystemPrompt(WORKSPACE) },
     ...history
   ];
 
@@ -210,28 +195,29 @@ async function processMessage(input) {
 
     let fullResponse = '';
     let toolCalls = [];
+    let currentProvider = '';
 
     // Stream response
     await new Promise((resolve, reject) => {
-      ollama.chatStream(
-        currentModel,
+      cloudAI.chatStream(
         messages,
         { temperature },
         // On data
-        (chunk) => {
-          if (chunk.message && chunk.message.content) {
-            fullResponse += chunk.message.content;
-            print(chunk.message.content);
+        (chunk, info) => {
+          if (info?.provider && info.provider !== currentProvider) {
+            currentProvider = info.provider;
+            printInfo(`\n[${info.provider}] `);
           }
+          fullResponse += chunk;
+          print(chunk);
         },
         // On end
-        async (finalChunk) => {
+        async (result) => {
           println('\n');
 
           // Check for tool calls
           const toolCallRegex = /```tool\s*\n([\s\S]*?)\n```/g;
           let match;
-          let processedResponse = fullResponse;
 
           while ((match = toolCallRegex.exec(fullResponse)) !== null) {
             try {
@@ -242,23 +228,17 @@ async function processMessage(input) {
               println(`${colors.dim}   ${JSON.stringify(toolCall.params)}${colors.reset}`);
 
               // Execute tool
-              const result = await executeTool(toolCall.name, toolCall.params);
+              const toolResult = await executeTool(toolCall.name, toolCall.params);
 
               // Show result
               println(`\n${colors.green}📋 Result:${colors.reset}`);
-              println(`${colors.dim}${JSON.stringify(result, null, 2)}${colors.reset}\n`);
+              println(`${colors.dim}${JSON.stringify(toolResult, null, 2)}${colors.reset}\n`);
 
               // Add to history
               history.push({
                 role: 'system',
-                content: `Tool "${toolCall.name}" result: ${JSON.stringify(result)}`
+                content: `Tool "${toolCall.name}" result: ${JSON.stringify(toolResult)}`
               });
-
-              // Replace tool call
-              processedResponse = processedResponse.replace(
-                match[0],
-                `\n\n<tool-result name="${toolCall.name}">\n${JSON.stringify(result, null, 2)}\n</tool-result>\n`
-              );
             } catch (e) {
               printError(`Tool execution failed: ${e.message}`);
             }
@@ -284,15 +264,6 @@ async function processMessage(input) {
 // Main loop
 async function main() {
   showWelcome();
-
-  // Check Ollama connection
-  try {
-    await ollama.listModels();
-    printSuccess('✓ Connected to Ollama\n');
-  } catch (error) {
-    printError('Cannot connect to Ollama. Make sure it\'s running (ollama serve)');
-    println(`${colors.dim}Starting anyway, but you may need to connect later.${colors.reset}\n`);
-  }
 
   // Start REPL
   rl.prompt();

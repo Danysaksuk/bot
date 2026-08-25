@@ -205,6 +205,59 @@ html, body {
   border: 1px solid var(--border);
 }
 
+/* Provider List */
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider-item {
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.provider-item.available {
+  border-color: var(--success);
+}
+
+.provider-item.cooldown {
+  border-color: var(--warning);
+  opacity: 0.7;
+}
+
+.provider-item.loading,
+.provider-item.empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.provider-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.provider-status {
+  font-size: 10px;
+}
+
+.provider-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.provider-models {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 18px;
+}
+
 .example-prompt {
   width: 100%;
   padding: 12px;

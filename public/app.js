@@ -2,10 +2,10 @@
 class GrokClone {
   constructor() {
     this.ws = null;
-    this.currentModel = 'qwen2.5-coder:7b';
     this.temperature = 0.7;
     this.isProcessing = false;
     this.currentMessage = null;
+    this.providers = [];
     
     this.init();
   }
@@ -14,7 +14,6 @@ class GrokClone {
     this.setupElements();
     this.setupEventListeners();
     this.connectWebSocket();
-    this.loadModels();
   }
   
   setupElements() {
@@ -22,7 +21,6 @@ class GrokClone {
     this.messagesContainer = document.getElementById('messages');
     this.messageInput = document.getElementById('messageInput');
     this.sendBtn = document.getElementById('sendBtn');
-    this.modelSelect = document.getElementById('modelSelect');
     this.temperatureSlider = document.getElementById('temperature');
     this.tempValue = document.getElementById('tempValue');
     this.charCount = document.getElementById('charCount');
@@ -34,6 +32,7 @@ class GrokClone {
     this.clearChat = document.getElementById('clearChat');
     this.menuToggle = document.getElementById('menuToggle');
     this.sidebar = document.querySelector('.sidebar');
+    this.providerList = document.getElementById('providerList');
   }
   
   setupEventListeners() {
@@ -53,12 +52,6 @@ class GrokClone {
     
     // Send button
     this.sendBtn.addEventListener('click', () => this.sendMessage());
-    
-    // Model selection
-    this.modelSelect.addEventListener('change', (e) => {
-      this.currentModel = e.target.value;
-      this.modelBadge.textContent = this.currentModel;
-    });
     
     // Temperature slider
     this.temperatureSlider.addEventListener('input', (e) => {
@@ -105,6 +98,8 @@ class GrokClone {
     this.ws.onopen = () => {
       console.log('Connected to server');
       this.updateStatus('connected');
+      // Request provider status
+      this.ws.send(JSON.stringify({ type: 'providers' }));
     };
     
     this.ws.onmessage = (event) => {
@@ -145,26 +140,37 @@ class GrokClone {
     }
   }
   
-  async loadModels() {
-    try {
-      const response = await fetch('/api/models');
-      const data = await response.json();
-      
-      this.modelSelect.innerHTML = '';
-      data.models.forEach(model => {
-        const option = document.createElement('option');
-        option.value = model.name;
-        option.textContent = `${model.name} (${(model.size / 1e9).toFixed(1)}GB)`;
-        if (model.name === data.default) {
-          option.selected = true;
-          this.currentModel = model.name;
-          this.modelBadge.textContent = model.name;
-        }
-        this.modelSelect.appendChild(option);
-      });
-    } catch (error) {
-      console.error('Failed to load models:', error);
+  updateProviderList(providers) {
+    this.providers = providers;
+    this.providerList.innerHTML = '';
+    
+    if (providers.length === 0) {
+      this.providerList.innerHTML = '<div class="provider-item empty">No providers configured</div>';
+      return;
     }
+    
+    providers.forEach(provider => {
+      const item = document.createElement('div');
+      item.className = `provider-item ${provider.status}`;
+      
+      const statusIcon = provider.status === 'available' ? '🟢' : '🟡';
+      const models = provider.models.slice(0, 3).join(', ');
+      const moreModels = provider.models.length > 3 ? ` +${provider.models.length - 3} more` : '';
+      
+      item.innerHTML = `
+        <div class="provider-header">
+          <span class="provider-status">${statusIcon}</span>
+          <span class="provider-name">${provider.name}</span>
+        </div>
+        <div class="provider-models">${models}${moreModels}</div>
+      `;
+      
+      this.providerList.appendChild(item);
+    });
+    
+    // Update model badge
+    const availableCount = providers.filter(p => p.status === 'available').length;
+    this.modelBadge.textContent = `${availableCount} provider${availableCount !== 1 ? 's' : ''} active`;
   }
   
   autoResize() {
@@ -201,7 +207,6 @@ class GrokClone {
     this.ws.send(JSON.stringify({
       type: 'chat',
       content,
-      model: this.currentModel,
       temperature: this.temperature
     }));
   }
@@ -218,6 +223,9 @@ class GrokClone {
         
       case 'chunk':
         this.hideThinking();
+        if (data.provider) {
+          this.updateModelBadge(data.provider, data.model);
+        }
         this.appendToCurrentMessage(data.content);
         break;
         
@@ -226,7 +234,7 @@ class GrokClone {
         break;
         
       case 'done':
-        this.finalizeMessage(data.model, data.toolCalls);
+        this.finalizeMessage(data.provider, data.toolCalls);
         this.isProcessing = false;
         this.sendBtn.disabled = false;
         break;
@@ -243,9 +251,17 @@ class GrokClone {
         this.welcomeScreen.style.display = 'block';
         break;
         
-      case 'models':
-        // Handle model list update
+      case 'providers':
+        this.updateProviderList(data.providers);
         break;
+    }
+  }
+  
+  updateModelBadge(provider, model) {
+    if (model) {
+      this.modelBadge.textContent = `${provider}: ${model}`;
+    } else {
+      this.modelBadge.textContent = provider;
     }
   }
   
@@ -295,7 +311,7 @@ class GrokClone {
     }
   }
   
-  finalizeMessage(model, toolCalls = []) {
+  finalizeMessage(provider, toolCalls = []) {
     if (this.currentMessage) {
       const content = this.currentMessage.textContent;
       this.currentMessage.innerHTML = this.formatContent(content);
