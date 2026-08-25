@@ -15,6 +15,10 @@ const WORKSPACE = process.env.WORKSPACE || process.cwd();
 
 // Initialize Cloud AI client with rotation
 const cloudAI = new CloudAIClient({
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY,
+    models: process.env.GEMINI_MODELS?.split(',') || undefined,
+  },
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY,
     models: process.env.OPENROUTER_MODELS?.split(',') || undefined,
