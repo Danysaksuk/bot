@@ -11,6 +11,7 @@ const wss = new WebSocket.Server({ server });
 
 // Configuration
 const PORT = process.env.PORT || 3001;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const WORKSPACE = process.env.WORKSPACE || process.cwd();
 
 // Initialize Cloud AI client with rotation
@@ -41,6 +42,11 @@ const chatHistories = new Map();
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
 
 // API Routes
 app.get('/api/providers', (req, res) => {
