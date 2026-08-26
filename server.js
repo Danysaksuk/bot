@@ -89,10 +89,10 @@ wss.on('connection', (ws) => {
     console.log(`[Grok Clone] Session ended: ${sessionId}`);
   });
   
-  // Send welcome message
+  // Ready signal only — empty-state UI lives in the client
   ws.send(JSON.stringify({
-    type: 'system',
-    message: `Welcome to Grok Clone! I'm your AI coding assistant powered by cloud models.\n\n**Available providers:** ${cloudAI.getStatus().map(p => p.name).join(', ')}\n\nI can help you with:\n- 💻 Code generation, debugging, and explanation\n- 🔍 Web search for documentation and current info\n- 📁 File operations (read, write, list)\n- ⚡ Terminal command execution\n\nJust ask me anything!`
+    type: 'ready',
+    providers: cloudAI.getStatus()
   }));
 });
 
