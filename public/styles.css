@@ -267,6 +267,10 @@ button.tb-btn:hover {
   border-color: var(--success);
 }
 
+.provider-item.needs_key {
+  border-color: var(--warning);
+}
+
 .provider-item.cooldown {
   border-color: var(--warning);
   opacity: 0.75;
@@ -299,10 +303,35 @@ button.tb-btn:hover {
   background: var(--success);
 }
 
+.provider-item.needs_key .provider-status {
+  background: var(--warning);
+}
+
 .provider-name {
   font-size: 12px;
   font-weight: 600;
   color: var(--snow);
+  font-family: var(--font-mono);
+}
+
+.provider-tag {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.provider-item.needs_key .provider-tag {
+  color: var(--warning);
+}
+
+.provider-message {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--warning);
   font-family: var(--font-mono);
 }
 
