@@ -109,7 +109,16 @@ async function handleChatMessage(ws, sessionId, message) {
   ];
   
   ws.send(JSON.stringify({ type: 'thinking' }));
-  
+
+  const usableProviders = cloudAI.getStatus().filter((p) => p.status === 'available');
+  if (usableProviders.length === 0) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      message: cloudAI.getSetupMessage(),
+    }));
+    return;
+  }
+
   // Track if we need to process tool calls
   let fullResponse = '';
   let toolCalls = [];
@@ -132,6 +141,14 @@ async function handleChatMessage(ws, sessionId, message) {
       },
       // On end
       async (result) => {
+        if (!fullResponse.trim()) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: cloudAI.getSetupMessage(),
+          }));
+          return;
+        }
+
         // Add assistant response to history
         history.push({ role: 'assistant', content: fullResponse });
         
@@ -219,23 +236,25 @@ async function handleChatMessage(ws, sessionId, message) {
 // Start server
 server.listen(PORT, () => {
   const providers = cloudAI.getStatus();
+  const usableCount = providers.filter((p) => p.status === 'available').length;
   console.log(`
 ╔══════════════════════════════════════════════════════════╗
-║                   🚀 Grok Clone Server                  ║
+║                   🚀 NEXUS Server                       ║
 ║──────────────────────────────────────────────────────────║
 ║  Web UI:    http://localhost:${PORT}                      ║
 ║  Providers: ${providers.map(p => p.name).join(', ').padEnd(40)}║
+║  Active:    ${String(usableCount).padEnd(40)}║
 ║  Workspace: ${WORKSPACE.substring(0, 40).padEnd(40)}║
 ╚══════════════════════════════════════════════════════════╝
   `);
-  
-  if (providers.length === 0 || (providers.length === 1 && providers[0].name === 'openrouter-free')) {
+
+  if (usableCount === 0) {
     console.log(`
-⚠️  No API keys configured! Using OpenRouter free tier (limited).
-    Set these environment variables for better performance:
-    
-    export OPENROUTER_API_KEY=your_key_here    # Get from openrouter.ai
-    export FREEBUFF_API_KEY=your_key_here      # Optional: Freebuff proxy
+⚠️  No working AI providers configured!
+    Chat requests will fail until you set an API key in Railway:
+
+    OPENROUTER_API_KEY=sk-or-v1-...   # Free key: https://openrouter.ai/keys
+    GEMINI_API_KEY=...                # Optional: https://aistudio.google.com/apikey
     `);
   }
 });

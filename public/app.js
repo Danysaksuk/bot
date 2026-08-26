@@ -173,20 +173,36 @@ class NexusApp {
 
       const models = provider.models.slice(0, 3).join(', ');
       const moreModels = provider.models.length > 3 ? ` +${provider.models.length - 3}` : '';
+      const statusLabel = provider.status === 'available'
+        ? 'Active'
+        : provider.status === 'needs_key'
+          ? 'Needs API key'
+          : provider.status === 'cooldown'
+            ? 'Rate limited'
+            : provider.status;
 
       item.innerHTML = `
         <div class="provider-header">
           <span class="provider-status" aria-hidden="true"></span>
           <span class="provider-name">${provider.name}</span>
+          <span class="provider-tag">${statusLabel}</span>
         </div>
         <div class="provider-models">${models}${moreModels}</div>
+        ${provider.message ? `<div class="provider-message">${provider.message}</div>` : ''}
       `;
 
       this.providerList.appendChild(item);
     });
 
     const availableCount = providers.filter((p) => p.status === 'available').length;
-    this.modelBadge.textContent = `${availableCount} provider${availableCount !== 1 ? 's' : ''} active`;
+    if (availableCount === 0) {
+      this.modelBadge.textContent = 'No active providers';
+      if (this.connectionMeta) {
+        this.connectionMeta.textContent = 'Setup required';
+      }
+    } else {
+      this.modelBadge.textContent = `${availableCount} provider${availableCount !== 1 ? 's' : ''} active`;
+    }
   }
 
   autoResize() {
@@ -249,6 +265,7 @@ class NexusApp {
         break;
 
       case 'done':
+        this.hideThinking();
         this.finalizeMessage(data.provider, data.toolCalls);
         this.isProcessing = false;
         this.sendBtn.disabled = !this.messageInput.value.trim();
