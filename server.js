@@ -45,12 +45,30 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Health check endpoint for Render
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    // Boolean-only — never expose secret values
+    keys: {
+      openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      freebuff: Boolean(process.env.FREEBUFF_API_KEY),
+      custom: Boolean(process.env.CUSTOM_AI_API_KEY),
+    },
+  });
 });
 
 // API Routes
 app.get('/api/providers', (req, res) => {
-  res.json({ providers: cloudAI.getStatus() });
+  res.json({
+    providers: cloudAI.getStatus(),
+    keys: {
+      openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      freebuff: Boolean(process.env.FREEBUFF_API_KEY),
+      custom: Boolean(process.env.CUSTOM_AI_API_KEY),
+    },
+  });
 });
 
 app.get('/api/tools', (req, res) => {
